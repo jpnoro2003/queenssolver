@@ -175,13 +175,16 @@ if "clicked" not in st.session_state:
 
 # Introduction 
 st.title("👑 Queens Solver")
-st.write("This web app will solve a valid board for the Linkedin 'Queens' game!")
-st.write("Label each different group as an integer starting from one. For each row, write out the categories that appear, separating each cell with a '.' and each row with a ','")
-st.write("For example, the following input will output the following solution:")
-col1, col2 = st.columns(2)
-with col1:
-    st.write("""‎ 
-            
+
+tab1, tab2, tab3 = st.tabs(["Solver", "Explanation", "Info"])
+with tab1:
+    st.write("This web app will solve a valid board for the Linkedin 'Queens' game!")
+    st.write("Label each different group as an integer starting from one. For each row, write out the categories that appear, separating each cell with a '.' and each row with a ','")
+    st.write("For example, the following input will output the following solution:")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write("""‎ 
+                
         1.2.2.3.4.4.4.5,
     1.1.2.3.3.4.4.5,
     6.1.1.1.1.4.4.5,
@@ -190,22 +193,76 @@ with col1:
     8.7.1.1.1.1.1.1,
     8.8.8.1.1.1.1.1,
     8.8.8.8.8.1.1.1""")
-with col2:
-    st.write("‎ ")
-    st.image("Example.png", width=300)
+    with col2:
+        st.write("‎ ")
+        st.image("Example.png", width=300)
 
-# Create form elements
-board = st.text_area("Enter the board below", height=5)
-inputted_board = st.button("Solve Board")
+    # Create form elements
+    board = st.text_area("Enter the board below", height=5)
+    inputted_board = st.button("Solve Board")
 
-# Run solver when button is pressed
-if inputted_board:
-    board_list_raw = board.strip().split(",")
-    board_list = []
-    for i in board_list_raw:
-        temp = [int(k) for k in i.split(".")]#[int(k) for k in list(i)] 
-        board_list.append(temp)
-    final = solve(board_list)
+    # Run solver when button is pressed
+    if inputted_board:
+        board_list_raw = board.strip().split(",")
+        board_list = []
+        for i in board_list_raw:
+            temp = [int(k) for k in i.split(".")]#[int(k) for k in list(i)] 
+            board_list.append(temp)
+        final = solve(board_list)
+with tab2:
+    lin = """https://www.linkedin.com/help/linkedin/answer/a6269510#:~:text=Rules%201%20Each%20row%2C%20column%2C%20and%20colored%20region,eliminate%20cells%20that%20cannot%20contain%20a%20Crown%20symbol."""
+    st.write("Before we explain our model, we must first understand the rules of Queens. According to [LinkedIn's official rules,](%s)"%lin)
+    st.write("""* Each row, column, and colored region must contain exactly one Crown symbol (Queen).            
+* Crown symbols cannot be placed in adjacent cells, including diagonally.""")
+    
+    st.subheader("Setup")
+    st.write("The inputted grid is converted into a 2D Array, where there are $n$ arrays each with $n$ integers. Each integer (starting with 1) represents a coloured tile on the board. There are checks implemented to ensure that the input is valid (square grid, proper categories, etc.)")
+    st.write("We notice that for a square grid with $n$ rows, there must be exactly $n$ distinct colored regions. Let $k$ be the number of regions and $n$ be the number of rows. If $k > n$, since each row much have exactly 1 queen we can fill the $n$ rows however there will be $k-n$ regions without a queen. If $k < n$, then we fill the $k$ regions however there are $n-k$ rows without a queen. Thus, $k = n$.")
+    st.write("To solve Queens, we develop a Mixed Integer Program (MIP). We define the following variables:")
+    st.markdown("* Let $x_{i,j}$ represent whether a queen is placed on the square located on row $i = 1, ..., n$ and column $j = 1, ..., n$. $x_{i,j} = 1$ if there is a queen on (i,j), and is 0 otherwise")
+    st.markdown("* Likewise, let $c_{i,j}$ represent which region a cell belongs to. From before, we have regions $1, ..., n$. This is given to us from the Queens board, our model will try and solve for $x_{i,j}$.")
+
+    st.subheader("Objective Function")
+    st.write("For Queens, we are interested in the values of $x_{i,j}$. Thus, we will set the objective function to:")
+    st.latex("""{maximize: }\sum^{n}_{i=1}\sum^{n}_{j=1}x_{i,j}""")
+    st.write("We note that for a valid Queens solution, we have an objective value of n")
+
+    st.subheader("Region Constraint")
+    st.write("For each region, we want exactly one queen. Let $r = 1, ..., n$ represent the possible regions. We then have the constraint:")
+    st.latex("""\sum_{c_{i,j}=r}x_{i,j} = 1 \quad ∀ r = 1,...,n""")
+
+    st.subheader("Column Constraint")
+    st.write("For each column, we want exactly one queen. This gives us the Constraint:")
+    st.latex("""\sum_{i=1}^{n}x_{i,j} = 1 \quad ∀ j = 1,...,n""")
+
+    st.subheader("Row Constraint")
+    st.write("For each row, we want exactly one queen. This gives us the constraint:")
+    st.latex("""\sum_{j=1}^{n}x_{i,j} = 1 \quad ∀ i = 1,...,n""")
+
+    st.subheader("Adjacency Constraints")
+    col3, col4 = st.columns(2)
+    with col3:
+        st.image("adjacency.png", width=340)
+    with col4:
+        st.write("We note that no two queens can be placed on adjacent squares, either vertically, horizontally and diagonally. Our row (Blue) and column (Green) constraints handle horizontal and vertical adjacency respectively.")
+    st.write("We now need to add constraints to check if the cells in red have a queen (diagonal). We note that two cells that are diagonally adjacent can have at most one queen, otherwise our adjacency constraint is violated.")
+    st.write("We will first check the bottom left diagonal for a cell. Consider cell $(i,j)$, where $i = 2, ..., n$ and $j = 1, ..., n-1$. The bottom left cell is located at $(i-1, j+1)$. This gives us the constraint:")
+    st.latex("""x_{i,j}+x_{i-1,j+1} \le 1 \quad ∀ i = 2, ..., n \quad j = 1, ..., n-1""")
+    st.write("We now check the bottom right diagonal for a cell. Consider cell $(i,j)$, where $i = 1, ..., n-1$ and $j = 1, ..., n-1$. The bottom left cell is located at $(i+1, j+1)$. This gives us the constraint:")
+    st.latex("""x_{i,j}+x_{i+1,j+1} \le 1 \quad ∀ i = 1, ..., n-1 \quad j = 1, ..., n-1""")
+
+    st.subheader("Final MIP")
+    st.latex("""{max: }\sum^{n}_{i=1}\sum^{n}_{j=1}x_{i,j}""")
+    st.latex("""{S.T.: }\sum_{c_{i,j}=r}x_{i,j} = 1 \quad ∀ r = 1,...,n""")
+    st.latex("""\sum_{i=1}^{n}x_{i,j} = 1 \quad ∀ j = 1,...,n""")
+    st.latex("""\sum_{j=1}^{n}x_{i,j} = 1 \quad ∀ i = 1,...,n""")
+    st.latex("""x_{i,j}+x_{i-1,j+1} \le 1 \quad ∀ i = 2, ..., n \quad j = 1, ..., n-1""")
+    st.latex("""x_{i,j}+x_{i+1,j+1} \le 1 \quad ∀ i = 1, ..., n-1 \quad j = 1, ..., n-1""")
+    st.latex("""x_{i,j} \in \{0,1\} \quad ∀ i = 1, ..., n \quad j = 1, ..., n""")
+
+with tab3:
+    lin2 = """https://www.linkedin.com/in/jaden-noronha/"""
+    st.write("Tool created by Jaden Noronha. [LinkedIn](%s)"%lin2)
 
 
 
