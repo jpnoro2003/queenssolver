@@ -198,7 +198,7 @@ with tab1:
         st.image("Example.png", width=300)
 
     # Create form elements
-    board = st.text_area("Enter the board below", height=5)
+    board = st.text_area("Enter the board below", height=70)
     inputted_board = st.button("Solve Board")
 
     # Run solver when button is pressed
